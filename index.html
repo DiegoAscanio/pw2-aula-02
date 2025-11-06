@@ -1,0 +1,418 @@
+<meta charset="utf-8">
+<style scoped>
+
+body {
+        font-family: Arial, sans-serif;
+        margin: 2.5% 10% 0 10%;
+        text-align: justify;
+}
+
+iframe {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 100%;
+}
+
+img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    width: 75%;
+}
+
+/* Figure / caption */
+figure.youtube {
+  margin: 1.5rem 0;
+  text-align: center;
+}
+
+figure.youtube figcaption {
+  margin-top: 0.6rem;
+  font-size: 0.95rem;
+  color: #333;
+  line-height: 1.4;
+}
+
+/* título do vídeo */
+figure.youtube .video-title {
+  font-weight: 700;
+  margin-bottom: 0.3rem;
+}
+
+/* metadados (canal, data) */
+figure.youtube .meta {
+  font-style: italic;
+  font-size: 0.92rem;
+  margin-bottom: 0.45rem;
+}
+
+/* citações */
+figure.youtube .citation {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 0.9rem;
+  background: #fbfbfb;
+  border-left: 3px solid #ddd;
+  padding: 0.6rem 0.8rem;
+  display: inline-block;
+  text-align: left;
+  max-width: 720px;
+}
+
+/* small helper for source link */
+figure.youtube a.source {
+  color: #0066cc;
+  text-decoration: none;
+}
+figure.youtube a.source:hover { text-decoration: underline; }
+
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/default.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/languages/java.min.js"></script>
+<h1 id="aula-persistência-em-sql-com-jdbc-padrão-agnóstico-ao-sgbd">Aula
+— Persistência em SQL com <strong>JDBC padrão</strong> (agnóstico ao
+SGBD)</h1>
+<h2 id="decomdv-programação-web-ii-20252">DECOMDV — Programação Web II •
+2025/2</h2>
+<p><strong>Prof. M.Sc. Diego Ascânio Santos</strong></p>
+<h2 id="objetivos">Objetivos</h2>
+<p>Ao final desta aula o estudante será capaz de:</p>
+<ol type="1">
+<li>Explicar <strong>JDBC</strong> e seu papel na comunicação com
+<strong>qualquer</strong> SGBD relacional.</li>
+<li>Adicionar <strong>manual</strong> (pasta <code>lib/</code>) o
+<strong>driver JDBC</strong> do SGBD escolhido e configurar o
+<em>classpath</em>.</li>
+<li><strong>Abrir</strong> e <strong>fechar</strong> conexões JDBC
+explicitamente (sem <em>try-with-resources</em>), entendendo por que
+<strong>fechar recursos</strong> é crítico.</li>
+<li>Usar <strong>Statements / PreparedStatements</strong>,
+<strong>Queries</strong> e <strong>ResultSets</strong> com segurança
+(prevenindo <strong>SQL Injection</strong>).</li>
+<li>Implementar <strong>Create</strong> e <strong>Retrieve</strong> no
+repositório <strong>Refeição</strong> persistido via JDBC.</li>
+<li>(Exercício) Implementar <strong>Update</strong> e
+<strong>Delete</strong>.</li>
+</ol>
+<hr />
+<h2 id="jdbc-visão-geral-agnóstico-ao-sgbd">1. JDBC — visão geral
+(agnóstico ao SGBD)</h2>
+<ul>
+<li><p><strong>JDBC (Java Database Connectivity)</strong> é a API padrão
+do Java para falar com <strong>bancos relacionais</strong>.</p></li>
+<li><p>Você programa contra <strong>interfaces genéricas</strong>:
+<code>Connection</code> (conexão),
+<code>Statement/PreparedStatement</code> (comandos SQL),
+<code>ResultSet</code> (linhas retornadas).</p></li>
+<li><p>O que muda de um SGBD para outro é <strong>o driver
+(JAR)</strong> e <strong>a URL JDBC</strong>:</p>
+<ul>
+<li>MariaDB/MySQL: <code>jdbc:mariadb://host:3306/banco</code> /
+<code>jdbc:mysql://host:3306/banco</code></li>
+<li>PostgreSQL: <code>jdbc:postgresql://host:5432/banco</code></li>
+<li>SQLite: <code>jdbc:sqlite:/caminho/arquivo.db</code> (sem
+usuário/senha)</li>
+<li>SQL Server:
+<code>jdbc:sqlserver://host:1433;databaseName=banco</code></li>
+</ul></li>
+</ul>
+<hr />
+<h2 id="inclusão-do-driver-jdbc-jar-manualmente">2. Inclusão do driver
+JDBC (JAR) manualmente</h2>
+<ol type="1">
+<li>Crie a pasta <code>lib/</code> na raiz do projeto.</li>
+<li>Baixe o JAR do driver do seu SGBD (ex.: <a
+href="https://downloads.mariadb.com/Connectors/java/connector-java-2.7.2/mariadb-java-client-2.7.2.jar"><code>mariadb-java-client-2.7.2.jar</code></a>,
+<code>postgresql-&lt;versão&gt;.jar</code>,
+<code>sqlite-jdbc-&lt;versão&gt;.jar</code>).</li>
+<li>Coloque o JAR em <code>lib/</code>.</li>
+<li>No VS Code (aba <strong>Java Projects</strong> → <strong>Referenced
+Libraries</strong>), adicione <code>lib/**/*.jar</code> ao
+<em>classpath</em>.</li>
+</ol>
+<hr />
+<h2
+id="conexão-jdbc-abrir-e-fechar-explicitamente-sem-try-with-resources">3.
+Conexão JDBC — <strong>abrir</strong> e <strong>fechar</strong>
+explicitamente (sem <em>try-with-resources</em>)</h2>
+<p><strong>Padrão do projeto (legado-friendly):</strong></p>
+<ul>
+<li><p>A classe <strong>Repositório</strong>:</p>
+<ul>
+<li>possui <strong>métodos</strong> <code>openConnection()</code> e
+<code>closeConnection()</code>;</li>
+<li><strong>chama <code>openConnection()</code> no
+construtor</strong>;</li>
+<li><strong>NÃO</strong> usa <em>try-with-resources</em>; fecha
+<strong>manualmente</strong> <code>ResultSet</code>,
+<code>Statement/PreparedStatement</code> e, ao final, a
+<code>Connection</code>.</li>
+</ul></li>
+</ul>
+<blockquote>
+<p><strong>Por que fechar?</strong> Conexões são recursos limitados.
+Deixar abertas → vazamentos, esgotamento de <em>pool</em>, travamentos e
+erros intermitentes.</p>
+</blockquote>
+<hr />
+<h2 id="statements-queries-e-resultsets">4. Statements, Queries e
+ResultSets</h2>
+<ul>
+<li><strong>Statement</strong>: executa SQL “cru” (evite concatenar
+dados do usuário).</li>
+<li><strong>PreparedStatement</strong>: SQL
+<strong>parametrizado</strong> com <code>?</code>
+(<strong>recomendado</strong> e mais seguro).</li>
+<li><strong>Queries</strong>: <code>SELECT ...</code> → retornam
+<strong>ResultSet</strong> (cursor).</li>
+<li><strong>SQL Injection</strong>: <strong>nunca</strong> montar SQL
+com concatenação de strings vindas do usuário. <strong>Mitigue</strong>
+com <code>PreparedStatement</code> + validação (tipo, tamanho, formato)
++ <em>whitelists</em> para nomes de tabela/colunas quando
+inevitável.</li>
+<li><strong>ResultSet</strong>: use <code>rs.next()</code> e leia por
+nome/índice de coluna; <strong>sempre</strong> fechar manualmente.</li>
+</ul>
+<hr />
+<h2 id="modelo-tabela-e-interface-de-repositório">5. Modelo, Tabela e
+Interface de Repositório</h2>
+<h3 id="modelo">5.1 Modelo</h3>
+<div class="sourceCode" id="cb1"><pre
+class="sourceCode java"><code class="sourceCode java"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="co">// src/modelos/Refeicao.java</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="kw">package</span><span class="im"> modelos</span><span class="op">;</span></span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="im">java</span><span class="op">.</span><span class="im">time</span><span class="op">.</span><span class="im">LocalDate</span><span class="op">;</span></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">class</span> Refeicao <span class="op">{</span></span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    <span class="kw">private</span> <span class="dt">final</span> <span class="bu">String</span> idCartaoEstudante<span class="op">;</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">private</span> <span class="dt">final</span> LocalDate dataRefeicao<span class="op">;</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="fu">Refeicao</span><span class="op">(</span><span class="bu">String</span> id<span class="op">,</span> LocalDate data<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        <span class="kw">this</span><span class="op">.</span><span class="fu">idCartaoEstudante</span> <span class="op">=</span> id<span class="op">;</span></span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>        <span class="kw">this</span><span class="op">.</span><span class="fu">dataRefeicao</span> <span class="op">=</span> data<span class="op">;</span></span>
+<span id="cb1-12"><a href="#cb1-12" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb1-13"><a href="#cb1-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="bu">String</span> <span class="fu">getIdCartaoEstudante</span><span class="op">()</span> <span class="op">{</span> <span class="cf">return</span> idCartaoEstudante<span class="op">;</span> <span class="op">}</span></span>
+<span id="cb1-14"><a href="#cb1-14" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> LocalDate <span class="fu">getDataRefeicao</span><span class="op">()</span>   <span class="op">{</span> <span class="cf">return</span> dataRefeicao<span class="op">;</span> <span class="op">}</span></span>
+<span id="cb1-15"><a href="#cb1-15" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<h3 id="ddl-ansi-sql-simples">5.2 DDL (ANSI-SQL simples)</h3>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> <span class="cf">IF</span> <span class="kw">NOT</span> <span class="kw">EXISTS</span> refeicao (</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  id_cartao     <span class="dt">VARCHAR</span>(<span class="dv">64</span>) <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  data_refeicao <span class="dt">DATE</span>        <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="kw">PRIMARY</span> <span class="kw">KEY</span> (id_cartao, data_refeicao)</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>);</span></code></pre></div>
+<h3 id="interface-crud-parcial-nesta-aula">5.3 Interface (CRUD parcial
+nesta aula)</h3>
+<div class="sourceCode" id="cb3"><pre
+class="sourceCode java"><code class="sourceCode java"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co">// src/repositorios/RepositorioRefeicao.java</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="kw">package</span><span class="im"> repositorios</span><span class="op">;</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="im">modelos</span><span class="op">.</span><span class="im">Refeicao</span><span class="op">;</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="im">java</span><span class="op">.</span><span class="im">time</span><span class="op">.</span><span class="im">LocalDate</span><span class="op">;</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="im">java</span><span class="op">.</span><span class="im">util</span><span class="op">.*;</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">interface</span> RepositorioRefeicao <span class="op">{</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="dt">void</span> <span class="fu">create</span><span class="op">(</span>Refeicao r<span class="op">);</span>                                   <span class="co">// Create</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    Refeicao <span class="fu">retrieve</span><span class="op">(</span><span class="bu">String</span> id<span class="op">,</span> LocalDate data<span class="op">);</span>    <span class="co">// Read (por chave composta)</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>    <span class="bu">List</span><span class="op">&lt;</span>Refeicao<span class="op">&gt;</span> <span class="fu">retrieveAll</span><span class="op">();</span>                              <span class="co">// Read (todos)</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Update e Delete: exercício</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    <span class="dt">void</span> <span class="fu">update</span><span class="op">(</span>Refeicao r<span class="op">);</span>                                   <span class="co">// Update</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>    <span class="dt">void</span> <span class="fu">delete</span><span class="op">(</span><span class="bu">String</span> id<span class="op">,</span> LocalDate data<span class="op">);</span>                    <span class="co">// Delete</span></span>
+<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<hr />
+<h2
+id="repositório-jdbc-padrão-do-projeto-abrir-no-construtor-fechar-em-método">6.
+Repositório JDBC (padrão do projeto: abrir no construtor, fechar em
+método)</h2>
+<blockquote>
+<p><strong>Sem <em>try-with-resources</em></strong>. Fechamento
+<strong>manual</strong> em <code>finally</code>.</p>
+</blockquote>
+<div class="sourceCode" id="cb4"><pre
+class="sourceCode java"><code class="sourceCode java"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="co">// src/repositorios/RepositorioRefeicaoSQL.java</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="kw">package</span><span class="im"> repositorios</span><span class="op">;</span></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="im">modelos</span><span class="op">.</span><span class="im">Refeicao</span><span class="op">;</span></span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="im">java</span><span class="op">.</span><span class="im">sql</span><span class="op">.*;</span></span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="im">java</span><span class="op">.</span><span class="im">time</span><span class="op">.</span><span class="im">LocalDate</span><span class="op">;</span></span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="im">java</span><span class="op">.</span><span class="im">util</span><span class="op">.*;</span></span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">class</span> RepositorioRefeicaoSQL <span class="kw">implements</span> RepositorioRefeicao <span class="op">{</span></span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>    <span class="kw">private</span> <span class="dt">final</span> <span class="bu">String</span> url<span class="op">;</span></span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    <span class="kw">private</span> <span class="dt">final</span> <span class="bu">String</span> user<span class="op">;</span></span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="kw">private</span> <span class="dt">final</span> <span class="bu">String</span> pass<span class="op">;</span></span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>    <span class="kw">private</span> <span class="bu">Connection</span> con<span class="op">;</span> <span class="co">// mantida enquanto o repositório estiver em uso</span></span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="co">// Construtor chama o processo explícito de abertura</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="fu">RepositorioRefeicaoSQL</span><span class="op">(</span><span class="bu">String</span> url<span class="op">,</span> <span class="bu">String</span> user<span class="op">,</span> <span class="bu">String</span> pass<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>        <span class="kw">this</span><span class="op">.</span><span class="fu">url</span> <span class="op">=</span> url<span class="op">;</span> <span class="kw">this</span><span class="op">.</span><span class="fu">user</span> <span class="op">=</span> user<span class="op">;</span> <span class="kw">this</span><span class="op">.</span><span class="fu">pass</span> <span class="op">=</span> pass<span class="op">;</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>        <span class="fu">openConnection</span><span class="op">();</span> <span class="co">// padrão do projeto</span></span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 6.1 Iniciar conexão (explícito)</span></span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">final</span> <span class="dt">void</span> <span class="fu">openConnection</span><span class="op">()</span> <span class="op">{</span></span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span><span class="kw">this</span><span class="op">.</span><span class="fu">con</span> <span class="op">!=</span> <span class="kw">null</span><span class="op">)</span> <span class="cf">return</span><span class="op">;</span> <span class="co">// já aberta</span></span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span> <span class="op">{</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>user <span class="op">==</span> <span class="kw">null</span> <span class="op">&amp;&amp;</span> pass <span class="op">==</span> <span class="kw">null</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>                <span class="kw">this</span><span class="op">.</span><span class="fu">con</span> <span class="op">=</span> <span class="bu">DriverManager</span><span class="op">.</span><span class="fu">getConnection</span><span class="op">(</span>url<span class="op">);</span>     <span class="co">// ex.: SQLite</span></span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span> <span class="cf">else</span> <span class="op">{</span></span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>                <span class="kw">this</span><span class="op">.</span><span class="fu">con</span> <span class="op">=</span> <span class="bu">DriverManager</span><span class="op">.</span><span class="fu">getConnection</span><span class="op">(</span>url<span class="op">,</span> user<span class="op">,</span> pass<span class="op">);</span></span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>            <span class="co">// this.con.setAutoCommit(true); // default</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">catch</span> <span class="op">(</span><span class="bu">SQLException</span> e<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>            <span class="cf">throw</span> <span class="kw">new</span> <span class="bu">RuntimeException</span><span class="op">(</span><span class="st">&quot;Falha ao abrir conexão JDBC&quot;</span><span class="op">,</span> e<span class="op">);</span></span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a>    <span class="co">// 6.2 Fechar conexão (explícito) — liberar recursos</span></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">final</span> <span class="dt">void</span> <span class="fu">closeConnection</span><span class="op">()</span> <span class="op">{</span></span>
+<span id="cb4-38"><a href="#cb4-38" aria-hidden="true" tabindex="-1"></a>        <span class="cf">if</span> <span class="op">(</span><span class="kw">this</span><span class="op">.</span><span class="fu">con</span> <span class="op">!=</span> <span class="kw">null</span><span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-39"><a href="#cb4-39" aria-hidden="true" tabindex="-1"></a>            <span class="cf">try</span> <span class="op">{</span> <span class="cf">if</span> <span class="op">(!</span><span class="kw">this</span><span class="op">.</span><span class="fu">con</span><span class="op">.</span><span class="fu">isClosed</span><span class="op">())</span> <span class="kw">this</span><span class="op">.</span><span class="fu">con</span><span class="op">.</span><span class="fu">close</span><span class="op">();</span> <span class="op">}</span></span>
+<span id="cb4-40"><a href="#cb4-40" aria-hidden="true" tabindex="-1"></a>            <span class="cf">catch</span> <span class="op">(</span><span class="bu">SQLException</span> ignored<span class="op">)</span> <span class="op">{}</span></span>
+<span id="cb4-41"><a href="#cb4-41" aria-hidden="true" tabindex="-1"></a>            <span class="cf">finally</span> <span class="op">{</span> <span class="kw">this</span><span class="op">.</span><span class="fu">con</span> <span class="op">=</span> <span class="kw">null</span><span class="op">;</span> <span class="op">}</span></span>
+<span id="cb4-42"><a href="#cb4-42" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-43"><a href="#cb4-43" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-44"><a href="#cb4-44" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-45"><a href="#cb4-45" aria-hidden="true" tabindex="-1"></a>    <span class="at">@Override</span></span>
+<span id="cb4-46"><a href="#cb4-46" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">create</span><span class="op">(</span>Refeicao r<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-47"><a href="#cb4-47" aria-hidden="true" tabindex="-1"></a>        <span class="bu">PreparedStatement</span> ps <span class="op">=</span> <span class="kw">null</span><span class="op">;</span></span>
+<span id="cb4-48"><a href="#cb4-48" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span> <span class="op">{</span></span>
+<span id="cb4-49"><a href="#cb4-49" aria-hidden="true" tabindex="-1"></a>            <span class="bu">String</span> sql <span class="op">=</span> <span class="st">&quot;INSERT INTO refeicao (id_cartao, data_refeicao) VALUES (?, ?)&quot;</span><span class="op">;</span></span>
+<span id="cb4-50"><a href="#cb4-50" aria-hidden="true" tabindex="-1"></a>            ps <span class="op">=</span> con<span class="op">.</span><span class="fu">prepareStatement</span><span class="op">(</span>sql<span class="op">);</span></span>
+<span id="cb4-51"><a href="#cb4-51" aria-hidden="true" tabindex="-1"></a>            ps<span class="op">.</span><span class="fu">setString</span><span class="op">(</span><span class="dv">1</span><span class="op">,</span> r<span class="op">.</span><span class="fu">getIdCartaoEstudante</span><span class="op">());</span></span>
+<span id="cb4-52"><a href="#cb4-52" aria-hidden="true" tabindex="-1"></a>            ps<span class="op">.</span><span class="fu">setDate</span><span class="op">(</span><span class="dv">2</span><span class="op">,</span> <span class="bu">Date</span><span class="op">.</span><span class="fu">valueOf</span><span class="op">(</span>r<span class="op">.</span><span class="fu">getDataRefeicao</span><span class="op">()));</span></span>
+<span id="cb4-53"><a href="#cb4-53" aria-hidden="true" tabindex="-1"></a>            ps<span class="op">.</span><span class="fu">executeUpdate</span><span class="op">();</span></span>
+<span id="cb4-54"><a href="#cb4-54" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">catch</span> <span class="op">(</span><span class="bu">SQLIntegrityConstraintViolationException</span> dup<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-55"><a href="#cb4-55" aria-hidden="true" tabindex="-1"></a>            <span class="cf">throw</span> <span class="kw">new</span> <span class="bu">IllegalArgumentException</span><span class="op">(</span><span class="st">&quot;Refeição já registrada para este estudante nesta data.&quot;</span><span class="op">,</span> dup<span class="op">);</span></span>
+<span id="cb4-56"><a href="#cb4-56" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">catch</span> <span class="op">(</span><span class="bu">SQLException</span> e<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-57"><a href="#cb4-57" aria-hidden="true" tabindex="-1"></a>            <span class="cf">throw</span> <span class="kw">new</span> <span class="bu">RuntimeException</span><span class="op">(</span><span class="st">&quot;Erro ao inserir refeição&quot;</span><span class="op">,</span> e<span class="op">);</span></span>
+<span id="cb4-58"><a href="#cb4-58" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">finally</span> <span class="op">{</span></span>
+<span id="cb4-59"><a href="#cb4-59" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>ps <span class="op">!=</span> <span class="kw">null</span><span class="op">)</span> <span class="op">{</span> <span class="cf">try</span> <span class="op">{</span> ps<span class="op">.</span><span class="fu">close</span><span class="op">();</span> <span class="op">}</span> <span class="cf">catch</span> <span class="op">(</span><span class="bu">SQLException</span> ignored<span class="op">)</span> <span class="op">{}</span> <span class="op">}</span></span>
+<span id="cb4-60"><a href="#cb4-60" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-61"><a href="#cb4-61" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-62"><a href="#cb4-62" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-63"><a href="#cb4-63" aria-hidden="true" tabindex="-1"></a>    <span class="at">@Override</span></span>
+<span id="cb4-64"><a href="#cb4-64" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> Refeicao <span class="fu">retrieve</span><span class="op">(</span><span class="bu">String</span> idCartao<span class="op">,</span> LocalDate data<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-65"><a href="#cb4-65" aria-hidden="true" tabindex="-1"></a>        <span class="fu">ensureOpen</span><span class="op">();</span></span>
+<span id="cb4-66"><a href="#cb4-66" aria-hidden="true" tabindex="-1"></a>        <span class="bu">PreparedStatement</span> ps <span class="op">=</span> <span class="kw">null</span><span class="op">;</span></span>
+<span id="cb4-67"><a href="#cb4-67" aria-hidden="true" tabindex="-1"></a>        <span class="bu">ResultSet</span> rs <span class="op">=</span> <span class="kw">null</span><span class="op">;</span></span>
+<span id="cb4-68"><a href="#cb4-68" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span> <span class="op">{</span></span>
+<span id="cb4-69"><a href="#cb4-69" aria-hidden="true" tabindex="-1"></a>            <span class="bu">String</span> sql <span class="op">=</span> <span class="st">&quot;SELECT id_cartao, data_refeicao FROM refeicao WHERE id_cartao=? AND data_refeicao=?&quot;</span><span class="op">;</span></span>
+<span id="cb4-70"><a href="#cb4-70" aria-hidden="true" tabindex="-1"></a>            ps <span class="op">=</span> con<span class="op">.</span><span class="fu">prepareStatement</span><span class="op">(</span>sql<span class="op">);</span></span>
+<span id="cb4-71"><a href="#cb4-71" aria-hidden="true" tabindex="-1"></a>            ps<span class="op">.</span><span class="fu">setString</span><span class="op">(</span><span class="dv">1</span><span class="op">,</span> idCartao<span class="op">);</span></span>
+<span id="cb4-72"><a href="#cb4-72" aria-hidden="true" tabindex="-1"></a>            ps<span class="op">.</span><span class="fu">setDate</span><span class="op">(</span><span class="dv">2</span><span class="op">,</span> java<span class="op">.</span><span class="fu">sql</span><span class="op">.</span><span class="fu">Date</span><span class="op">.</span><span class="fu">valueOf</span><span class="op">(</span>data<span class="op">));</span></span>
+<span id="cb4-73"><a href="#cb4-73" aria-hidden="true" tabindex="-1"></a>            rs <span class="op">=</span> ps<span class="op">.</span><span class="fu">executeQuery</span><span class="op">();</span></span>
+<span id="cb4-74"><a href="#cb4-74" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>rs<span class="op">.</span><span class="fu">next</span><span class="op">())</span> <span class="op">{</span></span>
+<span id="cb4-75"><a href="#cb4-75" aria-hidden="true" tabindex="-1"></a>                <span class="cf">return</span> <span class="kw">new</span> <span class="fu">Refeicao</span><span class="op">(</span></span>
+<span id="cb4-76"><a href="#cb4-76" aria-hidden="true" tabindex="-1"></a>                    rs<span class="op">.</span><span class="fu">getString</span><span class="op">(</span><span class="st">&quot;id_cartao&quot;</span><span class="op">),</span></span>
+<span id="cb4-77"><a href="#cb4-77" aria-hidden="true" tabindex="-1"></a>                    rs<span class="op">.</span><span class="fu">getDate</span><span class="op">(</span><span class="st">&quot;data_refeicao&quot;</span><span class="op">).</span><span class="fu">toLocalDate</span><span class="op">()</span></span>
+<span id="cb4-78"><a href="#cb4-78" aria-hidden="true" tabindex="-1"></a>                <span class="op">);</span></span>
+<span id="cb4-79"><a href="#cb4-79" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb4-80"><a href="#cb4-80" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> <span class="kw">null</span><span class="op">;</span> <span class="co">// &lt;&lt;-- agora retorna null quando não encontra</span></span>
+<span id="cb4-81"><a href="#cb4-81" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">catch</span> <span class="op">(</span><span class="bu">SQLException</span> e<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-82"><a href="#cb4-82" aria-hidden="true" tabindex="-1"></a>            <span class="cf">throw</span> <span class="kw">new</span> <span class="bu">RuntimeException</span><span class="op">(</span><span class="st">&quot;Erro ao recuperar refeição&quot;</span><span class="op">,</span> e<span class="op">);</span></span>
+<span id="cb4-83"><a href="#cb4-83" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">finally</span> <span class="op">{</span></span>
+<span id="cb4-84"><a href="#cb4-84" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>rs <span class="op">!=</span> <span class="kw">null</span><span class="op">)</span> <span class="op">{</span> <span class="cf">try</span> <span class="op">{</span> rs<span class="op">.</span><span class="fu">close</span><span class="op">();</span> <span class="op">}</span> <span class="cf">catch</span> <span class="op">(</span><span class="bu">SQLException</span> ignored<span class="op">)</span> <span class="op">{}</span> <span class="op">}</span></span>
+<span id="cb4-85"><a href="#cb4-85" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>ps <span class="op">!=</span> <span class="kw">null</span><span class="op">)</span> <span class="op">{</span> <span class="cf">try</span> <span class="op">{</span> ps<span class="op">.</span><span class="fu">close</span><span class="op">();</span> <span class="op">}</span> <span class="cf">catch</span> <span class="op">(</span><span class="bu">SQLException</span> ignored<span class="op">)</span> <span class="op">{}</span> <span class="op">}</span></span>
+<span id="cb4-86"><a href="#cb4-86" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-87"><a href="#cb4-87" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-88"><a href="#cb4-88" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-89"><a href="#cb4-89" aria-hidden="true" tabindex="-1"></a>    <span class="at">@Override</span></span>
+<span id="cb4-90"><a href="#cb4-90" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="bu">List</span><span class="op">&lt;</span>Refeicao<span class="op">&gt;</span> <span class="fu">retrieveAll</span><span class="op">()</span> <span class="op">{</span></span>
+<span id="cb4-91"><a href="#cb4-91" aria-hidden="true" tabindex="-1"></a>        <span class="bu">PreparedStatement</span> ps <span class="op">=</span> <span class="kw">null</span><span class="op">;</span></span>
+<span id="cb4-92"><a href="#cb4-92" aria-hidden="true" tabindex="-1"></a>        <span class="bu">ResultSet</span> rs <span class="op">=</span> <span class="kw">null</span><span class="op">;</span></span>
+<span id="cb4-93"><a href="#cb4-93" aria-hidden="true" tabindex="-1"></a>        <span class="bu">List</span><span class="op">&lt;</span>Refeicao<span class="op">&gt;</span> out <span class="op">=</span> <span class="kw">new</span> <span class="bu">ArrayList</span><span class="op">&lt;&gt;();</span></span>
+<span id="cb4-94"><a href="#cb4-94" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span> <span class="op">{</span></span>
+<span id="cb4-95"><a href="#cb4-95" aria-hidden="true" tabindex="-1"></a>            <span class="bu">String</span> sql <span class="op">=</span> <span class="st">&quot;SELECT id_cartao, data_refeicao FROM refeicao ORDER BY data_refeicao DESC, id_cartao&quot;</span><span class="op">;</span></span>
+<span id="cb4-96"><a href="#cb4-96" aria-hidden="true" tabindex="-1"></a>            ps <span class="op">=</span> con<span class="op">.</span><span class="fu">prepareStatement</span><span class="op">(</span>sql<span class="op">);</span></span>
+<span id="cb4-97"><a href="#cb4-97" aria-hidden="true" tabindex="-1"></a>            rs <span class="op">=</span> ps<span class="op">.</span><span class="fu">executeQuery</span><span class="op">();</span></span>
+<span id="cb4-98"><a href="#cb4-98" aria-hidden="true" tabindex="-1"></a>            <span class="cf">while</span> <span class="op">(</span>rs<span class="op">.</span><span class="fu">next</span><span class="op">())</span> <span class="op">{</span></span>
+<span id="cb4-99"><a href="#cb4-99" aria-hidden="true" tabindex="-1"></a>                out<span class="op">.</span><span class="fu">add</span><span class="op">(</span><span class="kw">new</span> <span class="fu">Refeicao</span><span class="op">(</span></span>
+<span id="cb4-100"><a href="#cb4-100" aria-hidden="true" tabindex="-1"></a>                    rs<span class="op">.</span><span class="fu">getString</span><span class="op">(</span><span class="st">&quot;id_cartao&quot;</span><span class="op">),</span></span>
+<span id="cb4-101"><a href="#cb4-101" aria-hidden="true" tabindex="-1"></a>                    rs<span class="op">.</span><span class="fu">getDate</span><span class="op">(</span><span class="st">&quot;data_refeicao&quot;</span><span class="op">).</span><span class="fu">toLocalDate</span><span class="op">()</span></span>
+<span id="cb4-102"><a href="#cb4-102" aria-hidden="true" tabindex="-1"></a>                <span class="op">));</span></span>
+<span id="cb4-103"><a href="#cb4-103" aria-hidden="true" tabindex="-1"></a>            <span class="op">}</span></span>
+<span id="cb4-104"><a href="#cb4-104" aria-hidden="true" tabindex="-1"></a>            <span class="cf">return</span> out<span class="op">;</span></span>
+<span id="cb4-105"><a href="#cb4-105" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">catch</span> <span class="op">(</span><span class="bu">SQLException</span> e<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-106"><a href="#cb4-106" aria-hidden="true" tabindex="-1"></a>            <span class="cf">throw</span> <span class="kw">new</span> <span class="bu">RuntimeException</span><span class="op">(</span><span class="st">&quot;Erro ao listar refeições&quot;</span><span class="op">,</span> e<span class="op">);</span></span>
+<span id="cb4-107"><a href="#cb4-107" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">finally</span> <span class="op">{</span></span>
+<span id="cb4-108"><a href="#cb4-108" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>rs <span class="op">!=</span> <span class="kw">null</span><span class="op">)</span> <span class="op">{</span> <span class="cf">try</span> <span class="op">{</span> rs<span class="op">.</span><span class="fu">close</span><span class="op">();</span> <span class="op">}</span> <span class="cf">catch</span> <span class="op">(</span><span class="bu">SQLException</span> ignored<span class="op">)</span> <span class="op">{}</span> <span class="op">}</span></span>
+<span id="cb4-109"><a href="#cb4-109" aria-hidden="true" tabindex="-1"></a>            <span class="cf">if</span> <span class="op">(</span>ps <span class="op">!=</span> <span class="kw">null</span><span class="op">)</span> <span class="op">{</span> <span class="cf">try</span> <span class="op">{</span> ps<span class="op">.</span><span class="fu">close</span><span class="op">();</span> <span class="op">}</span> <span class="cf">catch</span> <span class="op">(</span><span class="bu">SQLException</span> ignored<span class="op">)</span> <span class="op">{}</span> <span class="op">}</span></span>
+<span id="cb4-110"><a href="#cb4-110" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb4-111"><a href="#cb4-111" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-112"><a href="#cb4-112" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-113"><a href="#cb4-113" aria-hidden="true" tabindex="-1"></a>    <span class="at">@Override</span></span>
+<span id="cb4-114"><a href="#cb4-114" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">update</span><span class="op">(</span>Refeicao r<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-115"><a href="#cb4-115" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Exercício para os alunos</span></span>
+<span id="cb4-116"><a href="#cb4-116" aria-hidden="true" tabindex="-1"></a>        <span class="cf">throw</span> <span class="kw">new</span> <span class="bu">UnsupportedOperationException</span><span class="op">(</span><span class="st">&quot;Método não implementado&quot;</span><span class="op">);</span></span>
+<span id="cb4-117"><a href="#cb4-117" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-118"><a href="#cb4-118" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-119"><a href="#cb4-119" aria-hidden="true" tabindex="-1"></a>    <span class="at">@Override</span></span>
+<span id="cb4-120"><a href="#cb4-120" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">void</span> <span class="fu">delete</span><span class="op">(</span><span class="bu">String</span> id<span class="op">,</span> LocalDate data<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb4-121"><a href="#cb4-121" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Exercício para os alunos</span></span>
+<span id="cb4-122"><a href="#cb4-122" aria-hidden="true" tabindex="-1"></a>        <span class="cf">throw</span> <span class="kw">new</span> <span class="bu">UnsupportedOperationException</span><span class="op">(</span><span class="st">&quot;Método não implementado&quot;</span><span class="op">);</span></span>
+<span id="cb4-123"><a href="#cb4-123" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb4-124"><a href="#cb4-124" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<h3 id="uso-básico-inicializar-usar-fechar">6.3 Uso básico (inicializar,
+usar, <strong>fechar</strong>)</h3>
+<div class="sourceCode" id="cb5"><pre
+class="sourceCode java"><code class="sourceCode java"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="co">// src/Main.java</span></span>
+<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="im">repositorios</span><span class="op">.</span><span class="im">RepositorioRefeicaoSQL</span><span class="op">;</span></span>
+<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="im">modelos</span><span class="op">.</span><span class="im">Refeicao</span><span class="op">;</span></span>
+<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a><span class="kw">import</span> <span class="im">java</span><span class="op">.</span><span class="im">time</span><span class="op">.</span><span class="im">LocalDate</span><span class="op">;</span></span>
+<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a><span class="kw">public</span> <span class="kw">class</span> Main <span class="op">{</span></span>
+<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>    <span class="kw">public</span> <span class="dt">static</span> <span class="dt">void</span> <span class="fu">main</span><span class="op">(</span><span class="bu">String</span><span class="op">[]</span> args<span class="op">)</span> <span class="op">{</span></span>
+<span id="cb5-8"><a href="#cb5-8" aria-hidden="true" tabindex="-1"></a>        <span class="co">// Ajuste a URL ao seu SGBD</span></span>
+<span id="cb5-9"><a href="#cb5-9" aria-hidden="true" tabindex="-1"></a>        <span class="bu">String</span> url  <span class="op">=</span> <span class="st">&quot;jdbc:mariadb://localhost:3306/refeicoes&quot;</span><span class="op">;</span></span>
+<span id="cb5-10"><a href="#cb5-10" aria-hidden="true" tabindex="-1"></a>        <span class="bu">String</span> user <span class="op">=</span> <span class="st">&quot;aluno&quot;</span><span class="op">;</span></span>
+<span id="cb5-11"><a href="#cb5-11" aria-hidden="true" tabindex="-1"></a>        <span class="bu">String</span> pass <span class="op">=</span> <span class="st">&quot;123456&quot;</span><span class="op">;</span></span>
+<span id="cb5-12"><a href="#cb5-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb5-13"><a href="#cb5-13" aria-hidden="true" tabindex="-1"></a>        RepositorioRefeicaoSQL repo <span class="op">=</span> <span class="kw">new</span> <span class="fu">RepositorioRefeicaoSQL</span><span class="op">(</span>url<span class="op">,</span> user<span class="op">,</span> pass<span class="op">);</span></span>
+<span id="cb5-14"><a href="#cb5-14" aria-hidden="true" tabindex="-1"></a>        <span class="cf">try</span> <span class="op">{</span></span>
+<span id="cb5-15"><a href="#cb5-15" aria-hidden="true" tabindex="-1"></a>            repo<span class="op">.</span><span class="fu">create</span><span class="op">(</span><span class="kw">new</span> <span class="fu">Refeicao</span><span class="op">(</span><span class="st">&quot;CARTAO123&quot;</span><span class="op">,</span> LocalDate<span class="op">.</span><span class="fu">of</span><span class="op">(</span><span class="dv">2025</span><span class="op">,</span> <span class="dv">9</span><span class="op">,</span> <span class="dv">1</span><span class="op">)));</span></span>
+<span id="cb5-16"><a href="#cb5-16" aria-hidden="true" tabindex="-1"></a>            <span class="bu">System</span><span class="op">.</span><span class="fu">out</span><span class="op">.</span><span class="fu">println</span><span class="op">(</span></span>
+<span id="cb5-17"><a href="#cb5-17" aria-hidden="true" tabindex="-1"></a>                Refeicao refeicao <span class="op">=</span> repo<span class="op">.</span><span class="fu">retrieve</span><span class="op">(</span><span class="st">&quot;CARTAO123&quot;</span><span class="op">,</span> LocalDate<span class="op">.</span><span class="fu">of</span><span class="op">(</span><span class="dv">2025</span><span class="op">,</span> <span class="dv">9</span><span class="op">,</span> <span class="dv">1</span><span class="op">));</span></span>
+<span id="cb5-18"><a href="#cb5-18" aria-hidden="true" tabindex="-1"></a>            <span class="op">);</span></span>
+<span id="cb5-19"><a href="#cb5-19" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span> <span class="cf">finally</span> <span class="op">{</span></span>
+<span id="cb5-20"><a href="#cb5-20" aria-hidden="true" tabindex="-1"></a>            <span class="co">// Padrão do projeto: fechamento explícito</span></span>
+<span id="cb5-21"><a href="#cb5-21" aria-hidden="true" tabindex="-1"></a>            repo<span class="op">.</span><span class="fu">closeConnection</span><span class="op">();</span></span>
+<span id="cb5-22"><a href="#cb5-22" aria-hidden="true" tabindex="-1"></a>        <span class="op">}</span></span>
+<span id="cb5-23"><a href="#cb5-23" aria-hidden="true" tabindex="-1"></a>    <span class="op">}</span></span>
+<span id="cb5-24"><a href="#cb5-24" aria-hidden="true" tabindex="-1"></a><span class="op">}</span></span></code></pre></div>
+<hr />
+<h2 id="exercício-para-os-alunos-update-e-delete">7. Exercício (para os
+alunos): <strong>Update</strong> e <strong>Delete</strong></h2>
+<p>Implemente <strong>no mesmo padrão</strong> as operações
+<strong>Update</strong> e <strong>Delete</strong> na classe
+<code>RepositorioRefeicaoSQL</code>, seguindo a interface
+<code>RepositorioRefeicao</code>.</p>
+<h3 id="checklist-de-entrega">7.3 Checklist de entrega</h3>
+<ul>
+<li>Usa <strong>PreparedStatement</strong> (sem concatenação de
+strings).</li>
+<li>Fecha <strong>ResultSet</strong> / <strong>Statement</strong>
+<strong>manualmente</strong> (em <code>finally</code>).</li>
+<li>Trata <strong>duplicidade</strong> (chave primária) e <strong>não
+encontrado</strong> (linhas afetadas = 0).</li>
+<li>Pequeno <strong>programa de teste</strong>: <em>insere → consulta →
+atualiza → consulta → deleta → consulta</em>.</li>
+<li><strong>Fecha a conexão</strong> ao final
+(<code>closeConnection()</code>).</li>
+</ul>
+<hr />
+<h3 id="encerramento">Encerramento</h3>
+<ul>
+<li><strong>Padrão adotado para todo o projeto</strong>:
+<code>openConnection()</code> chamado no <strong>construtor</strong> e
+<code>closeConnection()</code> explícito ao terminar —
+<strong>sem</strong> <em>try-with-resources</em> — para enfatizar
+<strong>ciclo de vida dos recursos</strong> e preparar o aluno para
+<strong>códigos legados</strong>.</li>
+<li><strong>Segurança</strong>: parâmetros (<code>?</code>) em
+<strong>PreparedStatement</strong> e validação de entradas → previnem
+<strong>SQL Injection</strong>.</li>
+<li><strong>Agnóstico ao SGBD</strong>: troque apenas
+<strong>driver</strong> e <strong>URL</strong>; o repositório
+permanece.</li>
+</ul>
+<script>hljs.highlightAll();</script>
