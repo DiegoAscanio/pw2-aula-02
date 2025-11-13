@@ -266,7 +266,6 @@ public class RepositorioRefeicaoSQL implements RepositorioRefeicao {
 
     @Override
     public Refeicao retrieve(String idCartao, LocalDate data) {
-        ensureOpen();
         PreparedStatement ps = null;
         ResultSet rs = null;
         try {
