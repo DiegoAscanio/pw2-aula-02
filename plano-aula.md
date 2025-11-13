@@ -183,7 +183,7 @@ CREATE TABLE IF NOT EXISTS refeicao (
 package repositorios;
 import modelos.Refeicao;
 import java.time.LocalDate;
-import java.util.*;
+import java.util.List;
 
 public interface RepositorioRefeicao {
     void create(Refeicao r);                                   // Create
