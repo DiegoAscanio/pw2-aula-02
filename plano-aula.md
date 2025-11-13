@@ -165,6 +165,10 @@ public class Refeicao {
 ### 5.2 DDL (ANSI-SQL simples)
 
 ```sql
+DROP DATABASE IF EXISTS refeicoes;
+CREATE DATABASE refeicoes;
+USE refeicoes;
+
 CREATE TABLE IF NOT EXISTS refeicao (
   id_cartao     VARCHAR(64) NOT NULL,
   data_refeicao DATE        NOT NULL,
